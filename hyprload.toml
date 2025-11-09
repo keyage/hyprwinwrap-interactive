@@ -1,7 +1,7 @@
 [hyprwinwrap]
-description = "A clone of xwinwrap for Hyprland"
+description = "A soft fork of hyprwinwrap for Hyprland"
 version = "1.0"
-authors = ["Vaxry"]
+authors = ["keircn"]
 
 [hyprwinwrap.build]
 output = "hyprwinwrap/hyprwinwrap.so"

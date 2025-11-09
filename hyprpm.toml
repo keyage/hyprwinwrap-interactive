@@ -1,6 +1,6 @@
 [repository]
-name = "hyprland-plugins"
-authors = ["Vaxry"]
+name = "hyprwinwrap-interactive"
+authors = ["keircn"]
 commit_pins = [
   [
     "3bb9c7c5cf4f2ee30bf821501499f2308d616f94",
@@ -138,14 +138,10 @@ commit_pins = [
     "71a1216abcc7031776630a6d88f105605c4dc1c9",
     "a5a6f93d72d5fb37e78b98c756cfd8b340e71a19",
   ], # 0.51.1
-  [
-    "06b37c390715e05f852076a8d1160e27c5cd291c",
-    "71a1216abcc7031776630a6d88f105605c4dc1c9",
-  ], # 0.52.0
 ]
 
 [hyprwinwrap]
-description = "A clone of xwinwrap for Hyprland"
-authors = ["Vaxry"]
+description = "A soft fork of hyprwinwrap for Hyprland"
+authors = ["keircn"]
 output = "hyprwinwrap/hyprwinwrap.so"
 build = ["make -C hyprwinwrap all"]
