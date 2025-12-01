@@ -1,43 +1,46 @@
 # hyprwinwrap-interactive
 
-This is a soft fork of hyprwm/hyprland-plugins that tweaks hyprwinwrap to allow interactivity to be toggled via a dispatcher
+A fork of [hyprwm/hyprland-plugins](https://github.com/hyprwm/hyprland-plugins) that provides only the hyprwinwrap plugin with added interactivity toggle functionality.
 
-# Install
+## Features
 
-## Install with `hyprpm`
+- Render any window as a desktop background (like xwinwrap)
+- Toggle interactivity with background windows via dispatchers
+- Automatic focus handling when toggling
+- Configurable size and position (percentage-based)
 
-To install these plugins, from the command line run:
+## Install
+
+### Install with `hyprpm`
 
 ```bash
 hyprpm update
-```
-
-Then add this repository:
-
-```bash
 hyprpm add https://github.com/keircn/hyprwinwrap-interactive
-```
-
-then enable the desired plugin with
-
-```bash
 hyprpm enable hyprwinwrap
 ```
 
-toggle interactivity with
+## Usage
+
+### Dispatchers
+
+Toggle, show, or hide interactivity with background windows:
 
 ```bash
-hyprctl dispatch hyprwinwrap_toggle
+# Toggle interactivity (recommended - bind to a key)
+hyprctl dispatch hyprwinwrap:toggle
+
+# Explicit show/hide
+hyprctl dispatch hyprwinwrap:show
+hyprctl dispatch hyprwinwrap:hide
 ```
 
-Set "new_optimizations" to false in hyprland.conf blur settings if you want tiled windows to render the app instead of your wallpaper when opaque.
+### Tips
 
-If you are using waybar and it gets covered by the app, set "layer" to "top".
+- Set `new_optimizations = false` in hyprland.conf blur settings if you want tiled windows to render the app instead of your wallpaper when opaque.
+- If using waybar and it gets covered by the app, set `layer = top` in waybar config.
 
-See [README.md](./hyprwinwrap/README.md) for configuration examples.
+See [hyprwinwrap/README.md](./hyprwinwrap/README.md) for configuration examples.
 
-# Contributing
+## Contributing
 
-Feel free to open issues and MRs with fixes.
-
-If you want your plugin added here, contact vaxry beforehand.
+Feel free to open issues and PRs with fixes or improvements.

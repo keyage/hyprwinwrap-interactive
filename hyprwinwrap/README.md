@@ -1,33 +1,54 @@
 # hyprwinwrap
 
-Clone of xwinwrap for hyprland.
+Clone of xwinwrap for Hyprland with interactivity toggle support.
 
-Example config:
+## Configuration
+
 ```ini
 plugin {
     hyprwinwrap {
         # class is an EXACT match and NOT a regex!
         class = kitty-bg
-        # you can also use title
-        title = kitty-bg
-        # you can add the position of the window in a percentage
+
+        # you can also match by title (exact match)
+        # title = my-bg-window
+
+        # position as percentage of monitor (default: 0, 0)
+        pos_x = 0
+        pos_y = 0
+
+        # size as percentage of monitor (default: 100, 100)
+        size_x = 100
+        size_y = 100
+    }
+}
+
+# Bind toggle to a key
+bind = SUPER, B, hyprwinwrap:toggle
+```
+
+### Partial coverage example
+
+To have the background window cover only part of the screen:
+
+```ini
+plugin {
+    hyprwinwrap {
+        class = kitty-bg
         pos_x = 25
         pos_y = 30
-        # you can add the size of the window in a percentage
         size_x = 40
         size_y = 70
     }
 }
-
 ```
 
-Launch `kitty -c "~/.config/hypr/kittyconfigbg.conf" --class="kitty-bg" "/home/vaxry/.config/hypr/cava.sh"`
+## Dispatchers
 
-Example script for cava:
+| Dispatcher | Description |
+|------------|-------------|
+| `hyprwinwrap:toggle` | Toggle interactivity for all background windows |
+| `hyprwinwrap:show` | Make all background windows interactable and focus them |
+| `hyprwinwrap:hide` | Hide all background windows (render in background only) |
+| `hyprwinwrap_toggle` | Legacy alias for `hyprwinwrap:toggle` |
 
-```sh
-#!/bin/sh
-sleep 1 && cava
-```
-
-_sleep required because resizing happens a few ms after open, which breaks cava_
