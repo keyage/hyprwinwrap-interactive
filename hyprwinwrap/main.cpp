@@ -11,7 +11,9 @@
 
 #define private public
 #include <hyprland/src/Compositor.hpp>
-#include <hyprland/src/desktop/Window.hpp>
+#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/Subsurface.hpp>
+#include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/managers/LayoutManager.hpp>
@@ -30,8 +32,8 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
 // hooks
 inline CFunctionHook* subsurfaceHook = nullptr;
 inline CFunctionHook* commitHook     = nullptr;
-typedef void (*origCommitSubsurface)(CSubsurface* thisptr);
-typedef void (*origCommit)(void* owner, void* data);
+typedef void (*origCommitSubsurface)(Desktop::View::CSubsurface* thisptr);
+typedef void (*origCommitWindow)(Desktop::View::CWindow* thisptr);
 
 std::vector<PHLWINDOWREF> bgWindows;
 std::map<PHLWINDOW, bool> interactableStates;
@@ -48,7 +50,7 @@ static bool isWindowInteractable(const PHLWINDOW& window) {
 
 static void setWindowInteractable(const PHLWINDOW& window, bool interactable) {
     interactableStates[window] = interactable;
-    window->m_hidden = !interactable;
+    window->m_hidden           = !interactable;
 }
 
 static void cleanupExpiredWindows() {
@@ -64,11 +66,11 @@ void onNewWindow(PHLWINDOW pWindow) {
     static auto* const PPOSX  = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:pos_x")->getDataStaticPtr();
     static auto* const PPOSY  = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:pos_y")->getDataStaticPtr();
 
-    const std::string classRule(*PCLASS);
-    const std::string titleRule(*PTITLE);
+    const std::string  classRule(*PCLASS);
+    const std::string  titleRule(*PTITLE);
 
-    const bool classMatches = !classRule.empty() && pWindow->m_initialClass == classRule;
-    const bool titleMatches = !titleRule.empty() && pWindow->m_title == titleRule;
+    const bool         classMatches = !classRule.empty() && pWindow->m_initialClass == classRule;
+    const bool         titleMatches = !titleRule.empty() && pWindow->m_title == titleRule;
 
     if (!classMatches && !titleMatches)
         return;
@@ -101,24 +103,20 @@ void onNewWindow(PHLWINDOW pWindow) {
     py = std::clamp(py, 0.f, 100.f);
 
     if (px + sx > 100.f) {
-        Debug::log(WARN, "[hyprwinwrap] size_x ({:.1f}) + pos_x ({:.1f}) > 100, adjusting size_x to {:.1f}", sx, px, 100.f - px);
+        Log::logger->log(Log::WARN, "[hyprwinwrap] size_x ({:.1f}) + pos_x ({:.1f}) > 100, adjusting size_x to {:.1f}", sx, px, 100.f - px);
         sx = 100.f - px;
     }
     if (py + sy > 100.f) {
-        Debug::log(WARN, "[hyprwinwrap] size_y ({:.1f}) + pos_y ({:.1f}) > 100, adjusting size_y to {:.1f}", sy, py, 100.f - py);
+        Log::logger->log(Log::WARN, "[hyprwinwrap] size_y ({:.1f}) + pos_y ({:.1f}) > 100, adjusting size_y to {:.1f}", sy, py, 100.f - py);
         sy = 100.f - py;
     }
 
     const Vector2D monitorSize = PMONITOR->m_size;
     const Vector2D monitorPos  = PMONITOR->m_position;
 
-    const Vector2D newSize = {
-        static_cast<int>(monitorSize.x * (sx / 100.f)),
-        static_cast<int>(monitorSize.y * (sy / 100.f))};
+    const Vector2D newSize = {static_cast<int>(monitorSize.x * (sx / 100.f)), static_cast<int>(monitorSize.y * (sy / 100.f))};
 
-    const Vector2D newPos = {
-        static_cast<int>(monitorPos.x + (monitorSize.x * (px / 100.f))),
-        static_cast<int>(monitorPos.y + (monitorSize.y * (py / 100.f)))};
+    const Vector2D newPos = {static_cast<int>(monitorPos.x + (monitorSize.x * (px / 100.f))), static_cast<int>(monitorPos.y + (monitorSize.y * (py / 100.f)))};
 
     pWindow->m_realSize->setValueAndWarp(newSize);
     pWindow->m_realPosition->setValueAndWarp(newPos);
@@ -131,13 +129,13 @@ void onNewWindow(PHLWINDOW pWindow) {
     setWindowInteractable(pWindow, false);
 
     g_pInputManager->refocus();
-    Debug::log(LOG, "[hyprwinwrap] new window moved to bg {}", pWindow);
+    Log::logger->log(Log::INFO, "[hyprwinwrap] new window moved to bg {}", pWindow);
 }
 
 void onCloseWindow(PHLWINDOW pWindow) {
     std::erase_if(bgWindows, [pWindow](const auto& ref) { return ref.expired() || ref.lock() == pWindow; });
     interactableStates.erase(pWindow);
-    Debug::log(LOG, "[hyprwinwrap] closed window {}", pWindow);
+    Log::logger->log(Log::INFO, "[hyprwinwrap] closed window {}", pWindow);
 }
 
 void onRenderStage(eRenderStage stage) {
@@ -166,42 +164,38 @@ void onRenderStage(eRenderStage stage) {
     }
 }
 
-void onCommitSubsurface(CSubsurface* thisptr) {
-    const auto PWINDOW = thisptr->m_wlSurface->getWindow();
+void onCommitSubsurface(Desktop::View::CSubsurface* thisptr) {
+    const auto PWINDOW = thisptr->m_windowParent.lock();
 
     if (!PWINDOW || !isBgWindow(PWINDOW)) {
         ((origCommitSubsurface)subsurfaceHook->m_original)(thisptr);
         return;
     }
 
-    // cant use setHidden cuz that sends suspended and shit too that would be laggy
     PWINDOW->m_hidden = false;
 
     ((origCommitSubsurface)subsurfaceHook->m_original)(thisptr);
     if (const auto MON = PWINDOW->m_monitor.lock(); MON)
         g_pHyprOpenGL->markBlurDirtyForMonitor(MON);
 
-    // Only hide if not interactable
     if (!isWindowInteractable(PWINDOW))
         PWINDOW->m_hidden = true;
 }
 
-void onCommit(void* owner, void* data) {
-    const auto PWINDOW = ((CWindow*)owner)->m_self.lock();
+void onCommitWindow(Desktop::View::CWindow* thisptr) {
+    const auto PWINDOW = thisptr->m_self.lock();
 
     if (!isBgWindow(PWINDOW)) {
-        ((origCommit)commitHook->m_original)(owner, data);
+        ((origCommitWindow)commitHook->m_original)(thisptr);
         return;
     }
 
-    // cant use setHidden cuz that sends suspended and shit too that would be laggy
     PWINDOW->m_hidden = false;
 
-    ((origCommit)commitHook->m_original)(owner, data);
+    ((origCommitWindow)commitHook->m_original)(thisptr);
     if (const auto MON = PWINDOW->m_monitor.lock(); MON)
         g_pHyprOpenGL->markBlurDirtyForMonitor(MON);
 
-    // Only hide if not interactable
     if (!isWindowInteractable(PWINDOW))
         PWINDOW->m_hidden = true;
 }
@@ -242,13 +236,13 @@ SDispatchResult dispatchToggle(std::string args) {
         setWindowInteractable(bgw, newState);
         toggledCount++;
 
-        Debug::log(LOG, "[hyprwinwrap] Toggled window {} to {}", bgw, newState ? "interactable" : "non-interactable");
+        Log::logger->log(Log::INFO, "[hyprwinwrap] Toggled window {} to {}", bgw, newState ? "interactable" : "non-interactable");
     }
 
     if (toggledCount > 0 && !bgWindows.empty()) {
         const auto firstBg = bgWindows.front().lock();
         if (firstBg && isWindowInteractable(firstBg)) {
-            g_pCompositor->focusWindow(firstBg);
+            Desktop::focusState()->fullWindowFocus(firstBg);
         } else {
             g_pInputManager->refocus();
         }
@@ -271,13 +265,13 @@ SDispatchResult dispatchShow(std::string args) {
             continue;
 
         setWindowInteractable(bgw, true);
-        Debug::log(LOG, "[hyprwinwrap] Set window {} to interactable", bgw);
+        Log::logger->log(Log::INFO, "[hyprwinwrap] Set window {} to interactable", bgw);
     }
 
     if (!bgWindows.empty()) {
         const auto firstBg = bgWindows.front().lock();
         if (firstBg)
-            g_pCompositor->focusWindow(firstBg);
+            Desktop::focusState()->fullWindowFocus(firstBg);
     }
 
     return SDispatchResult{};
@@ -292,7 +286,7 @@ SDispatchResult dispatchHide(std::string args) {
             continue;
 
         setWindowInteractable(bgw, false);
-        Debug::log(LOG, "[hyprwinwrap] Set window {} to non-interactable", bgw);
+        Log::logger->log(Log::INFO, "[hyprwinwrap] Set window {} to non-interactable", bgw);
     }
 
     g_pInputManager->refocus();
@@ -333,10 +327,10 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         subsurfaceHook = HyprlandAPI::createFunctionHook(PHANDLE, fn.address, (void*)&onCommitSubsurface);
     }
 
-    fns = HyprlandAPI::findFunctionsByName(PHANDLE, "listener_commitWindow");
+    fns = HyprlandAPI::findFunctionsByName(PHANDLE, "commitWindow");
     if (fns.size() < 1)
-        throw std::runtime_error("hyprwinwrap: listener_commitWindow not found");
-    commitHook = HyprlandAPI::createFunctionHook(PHANDLE, fns[0].address, (void*)&onCommit);
+        throw std::runtime_error("hyprwinwrap: commitWindow not found");
+    commitHook = HyprlandAPI::createFunctionHook(PHANDLE, fns[0].address, (void*)&onCommitWindow);
 
     bool hkResult = subsurfaceHook->hook();
     hkResult      = hkResult && commitHook->hook();
