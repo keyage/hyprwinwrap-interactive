@@ -146,6 +146,10 @@ commit_pins = [
     "967c3c7404d4fa00234e29c70df3e263386d2597",
     "52f42fcc31995fdcdcaddeb29911bbbcb90b8eb8",
   ], # 0.52.1
+  [
+    "31d3181e1ee91e338fb4fb8207d64b8d689310fc",
+    "09bb7693b586f5c65860fa33e15b52e9a71d4d12",
+  ], # 0.53.0
 ]
 
 [hyprwinwrap]
